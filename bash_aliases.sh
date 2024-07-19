@@ -4,13 +4,26 @@
 ### init
 # store session start date & time
 alias SESSION_START_TIME='echo `date +"%m-%d-%Y %T"`'
-
 # start ssh-agent
 eval "$(ssh-agent -s)" &>/dev/null
 
 ### custom settings
-# bash prompt helper functions
-# shows the repo and branch
+# set username and id
+export usr=`id -un`
+export USERNAME=$usr
+export uid=`id -u`
+export USERID=$uid
+# store newline string
+export NEWLINE=$(printf "\r\n")
+# make piping thru pgp work right
+export GPG_TTY=`tty`
+# refresh SSH_AUTH_SOCK because it gets stale when using screen which causes the connection to drop
+export SSH_AUTH_SOCK=$(find /tmp/ssh-* -user `whoami` -name agent\* -printf '%T@ %p\n' 2>/dev/null | sort -k 1nr | sed 's/^[^ ]* //' | head -n 1)
+# don't add duplicate commands the command history
+export HISTCONTROL=ignoreboth
+
+# custom functions
+# prints the repo and branch
 git_repo_branch() {
   repo=$(git remote -v 2>/dev/null | head -n 1 | sed -nE 's@^.*/(.*).git.*$@\1@p')
   if [ "$repo" != "" ]; then
@@ -20,23 +33,22 @@ git_repo_branch() {
     printf ""
   fi
 }
-# bash prompt
+# sets the prompt with or without color
 if [ -x /usr/bin/tput ] && tput setaf 1 >&/dev/null; then
-    # We have color support; assume it's compliant with Ecma-48
-    # (ISO/IEC-6429). (Lack of such support is extremely rare, and such
-    # a case would tend to support setf rather than setaf.)
     PS1='\[\033[01;32m\]\u@\h:\[\033[00m\] $(git_repo_branch) \n\[\033[01;34m\]\w\033[00m\] $ '
 else
     PS1='\u@\h \w\n$ '
 fi
-# function that skips first row
+
+# prints only the first row, e.g.
+#   cat filename.txt | printheader
 printheader() {
   IFS= read -r header
   printf '%s\n' "$header"
   "$@"
 }
 
-# if ~/.bin exists, add to PATH, otherwise try ~/bin and then print message when alias is called
+# if ~/.bin exists, add to PATH, otherwise try ~/bin, otherwise print warning
 if [ -d "$HOME/.bin" ] ; then
   PATH="$HOME/.bin:$PATH"
   alias lsbin="ls -l $HOME/.bin"
@@ -49,18 +61,6 @@ else
   alias lsbin="echo 'no bin folder found'"
   alias cdbin="echo 'no bin folder found'"
 fi
-
-# store newline string
-export NEWLINE=$(printf "\r\n")
-
-# make piping thru pgp work right
-export GPG_TTY=`tty`
-
-# refresh SSH_AUTH_SOCK because it gets stale when using screen which causes the connection to drop
-export SSH_AUTH_SOCK=$(find /tmp/ssh-* -user `whoami` -name agent\* -printf '%T@ %p\n' 2>/dev/null | sort -k 1nr | sed 's/^[^ ]* //' | head -n 1)
-
-# don't add duplicate commands the command history
-export HISTCONTROL=ignoreboth
 
 # function that prompts for displaying aliases
 function aliasprompt {
@@ -196,14 +196,14 @@ alias sshconfig='nano ~/.ssh/config'
 # netstat
 alias port-alias="alias | grep netstat; alias | grep port; alias | grep tcp"
 alias allports="sudo netstat -tulpn | awk '{print $1 $4 $5 $7 $8}'"
-  alias nets='allports'
+alias nets='allports'
 alias netports="nets | secondln; nets | skipfirsttwo"
 alias tcpports="nets | secondln; nets | skipfirsttwo | grep tcp | grep -v tcp6"
-  alias tcpp='tcpports'
+alias tcpp='tcpports'
 alias udpports="nets | secondln; nets | skipfirsttwo | grep udp | grep -v udp6"
-  alias udpp='udpports'
+alias udpp='udpports'
 alias grepport="sudo netstat -tulpn | grep "
-  alias portcheck='grepport'
+alias portcheck='grepport'
 # ufw
 alias lsufw="sudo ufw status"
 # ssl
@@ -220,114 +220,131 @@ alias shosts='showhosts'
 alias edithosts='sudo nano /etc/hosts'
 alias ehosts='edithosts'
 
-# if nginx is installed, add nginx aliases
-if command -v nginx > /dev/null; then
-  alias nginx-alias="alias | grep nginx"
-  alias cdnginx="cd /etc/nginx"
-  alias sitesa='cd /etc/nginx/sites-available'
-  alias sitese='cd /etc/nginx/sites-enabled'
-  alias lssites='ls -l /etc/nginx/sites-enabled'
-  alias lssitesa='ls -l /etc/nginx/sites-available'
-  alias nginxstart='sudo systemctl start nginx'
-  alias nginxstop='sudo systemctl stop nginx'
-  alias nginxrestart='sudo systemctl restart nginx'
-  alias nginxreload='sudo systemctl reload nginx'
-  alias nginxtest='sudo nginx -t'
-  alias ngint='nginxtest'
-  alias nginxstatus='sudo systemctl status nginx'
-  alias nginxerrors='sudo tail -f /var/log/nginx/error.log'
-  alias nginxaccess='sudo tail -f /var/log/nginx/access.log'
-  alias createproxy='bash <(curl -sSL https://jrussell.sh/create-nginx-proxy)'
-  alias nginxedit='echo "current live sites:" && lssites; read -p "file=" filename; sudo nano /etc/nginx/sites-available/$filename'
-  alias nginxnew='nginxedit'
-  alias nginxcopy='lssites; read -p "oldfile=" oldfile; read -p "newfile=" newfile; sudo rm -rf /etc/nginx/sites-available/$newfile && sudo cp -ar /etc/nginx/sites-available/$oldfile /etc/nginx/sites-available/$newfile && sudo nano /etc/nginx/sites-available/$newfile && nginxlink && nginxreload'
-  alias nginxlink='read -p "nginx config to link -> " confname; sudo ln -s /etc/nginx/sites-available/$confname /etc/nginx/sites-enabled/$confname && echo "current live sites:" && lssites | grep $confname'
-  alias nginxunlink='echo "current live sites:" && lssites && read -p "nginx config to unlink -> " confname; sudo unlink /etc/nginx/sites-enabled/$confname'
-  alias nginxrename='read -p "nginx config to rename -> " confname; sudo mv /etc/nginx/sites-available/$confname /etc/nginx/sites-available/$confname'
-fi
-
 # if docker is installed, add docker aliases
 if command -v docker > /dev/null; then
-  alias docker-alias="alias | grep docker"
-  alias lsdocker="sudo docker ps -a"
-  alias lsd='lsdocker'
-  alias dstoprm='read -p "name of container to stop and remove -> " dcrcont; sudo docker stop $dcrcont && sudo docker rm $dcrcont'
-  alias dockerstopremove='dstoprm'
-  alias dcnano='sudo nano docker-compose.yml'
-  alias dcvim='sudo vim docker-compose.yml'
-  alias dcless='sudo less docker-compose.yml'
-  alias dccat='sudo cat docker-compose.yml'
-  alias dcedit='dcnano'
-  alias dcreplace='echo '' > docker-compose.yml && dcedit'
-  alias dcprint='dccat'
-  alias dcshow='dcless'
-  # if docker-compose is installed, add those aliases
-  if command -v docker-compose > /dev/null; then
-    alias dc='sudo docker-compose'
-    alias dcup='sudo docker-compose up -d'
-    alias dcupbuild='sudo docker-compose up -d --build'
-    alias dcrestart='sudo docker-compose restart'
-    alias dcstart='sudo docker-compose start'
-    alias dcstop='sudo docker-compose stop'
-    alias dcdown='sudo docker-compose down'
-    alias dclogs='sudo docker-compose logs'
-  else
-    alias dc='sudo docker compose'
-    alias dcup='sudo docker compose up -d'
-    alias dcupbuild='sudo docker compose up -d --build'
-    alias dcrestart='sudo docker compose restart'
-    alias dcstart='sudo docker compose start'
-    alias dcstop='sudo docker compose stop'
-    alias dcdown='sudo docker compose down'
-    alias dclogs='sudo docker compose logs'
-  fi
+alias docker-alias="alias | grep docker"
+alias lsdocker="sudo docker ps -a"
+alias lsd='lsdocker'
+alias dstoprm='read -p "name of container to stop and remove -> " dcrcont; sudo docker stop $dcrcont && sudo docker rm $dcrcont'
+alias dockerstopremove='dstoprm'
+alias dcnano='sudo nano docker-compose.yml'
+alias dcvim='sudo vim docker-compose.yml'
+alias dcless='sudo less docker-compose.yml'
+alias dccat='sudo cat docker-compose.yml'
+alias dcedit='dcnano'
+alias dcreplace='echo '' > docker-compose.yml && dcedit'
+alias dcprint='dccat'
+alias dcshow='dcless'
+# if docker-compose is installed, add those aliases
+if command -v docker-compose > /dev/null; then
+alias dc='sudo docker-compose'
+alias dcup='sudo docker-compose up -d'
+alias dcupbuild='sudo docker-compose up -d --build'
+alias dcrestart='sudo docker-compose restart'
+alias dcstart='sudo docker-compose start'
+alias dcstop='sudo docker-compose stop'
+alias dcdown='sudo docker-compose down'
+alias dclogs='sudo docker-compose logs'
+else
+alias dc='sudo docker compose'
+alias dcup='sudo docker compose up -d'
+alias dcupbuild='sudo docker compose up -d --build'
+alias dcrestart='sudo docker compose restart'
+alias dcstart='sudo docker compose start'
+alias dcstop='sudo docker compose stop'
+alias dcdown='sudo docker compose down'
+alias dclogs='sudo docker compose logs'
+fi
 fi
 
 # if git is installed, add other git aliases
 if command -v git > /dev/null; then
-  alias git-alias="alias | grep git"
-  alias gitconfig='bash <(curl -sSL https://jrussell.sh/configure-git)'
-  alias gitclone="bash <(curl -sSL https://jrussell.sh/recursive-git-clone)"
-  alias gitops="bash <(curl -sSL https://jrussell.sh/git-ops)"
-  alias gitseturl="git remote set-url origin"
-  # git aliases from Eric, plus new ones
-  alias ga='git add'
-  alias gitaddall='git add . --all'
-  alias gaa='gitaddall'
-  alias gb='git branch'
-  alias gba='git branch -a'
-  alias gbd='git branch -D'
-  alias gbr="git br"
-  alias gc='git checkout'
-  alias gcb='git checkout -b'
-  alias gcm='git checkout master'
-  alias gcp='git cherry-pick'
-  alias gdh='git diff HEAD'
-  alias gdno='git diff --name-only'
-  alias gdom='git diff origin/master...'
-  alias gdoml='git diff origin/master:./ -- ' # diff files in master with uncommitted local files
-  alias gf='git fetch'
-  alias gfo='git fetch origin'
-  alias gits='git status'
-  alias gl='git log'
-  alias glsf='git ls-files --others --exclude-standard'
-  alias gm='git merge'
-  alias gmnn='git merge --no-ff --no-commit'
-  alias gmom='git merge origin/master'
-  alias gms='git merge --squash'
-  alias gmsn='git merge --squash --no-commit'
-  alias gp='git pull'
-  alias gpo='git pull origin'
-  alias gpom='git pull origin master'
-  alias gpso='git push origin'
-  alias gpsom='git push origin master'
-  alias grom='git rebase origin/master'
-  alias grv="git remote -v"
-  alias gitremote="git remote -v | grep fetch | awk {'print \$2'}"
-  alias gitr="gitremote"
-  # save git password to GIT_PASSWD
-  alias storegitpass='read -sp "Please enter your Git password: " GIT_PASSWD; echo "$NEWLINE"'
-  # to store git password on login: add storefitpass to init
+alias git-alias="alias | grep git"
+alias gitconfig='bash <(curl -sSL https://jrussell.sh/configure-git)'
+alias gitclone="bash <(curl -sSL https://jrussell.sh/recursive-git-clone)"
+alias gitops="bash <(curl -sSL https://jrussell.sh/git-ops)"
+alias gitseturl="git remote set-url origin"
+# git aliases from Eric, plus new ones
+alias ga='git add'
+alias gitaddall='git add . --all'
+alias gaa='gitaddall'
+alias gb='git branch'
+alias gba='git branch -a'
+alias gbd='git branch -D'
+alias gbr="git br"
+alias gc='git checkout'
+alias gcb='git checkout -b'
+alias gcm='git checkout master'
+alias gcp='git cherry-pick'
+alias gdh='git diff HEAD'
+alias gdno='git diff --name-only'
+alias gdom='git diff origin/master...'
+alias gdoml='git diff origin/master:./ -- ' # diff files in master with uncommitted local files
+alias gf='git fetch'
+alias gfo='git fetch origin'
+alias gits='git status'
+alias gl='git log'
+alias glsf='git ls-files --others --exclude-standard'
+alias gm='git merge'
+alias gmnn='git merge --no-ff --no-commit'
+alias gmom='git merge origin/master'
+alias gms='git merge --squash'
+alias gmsn='git merge --squash --no-commit'
+alias gp='git pull'
+alias gpo='git pull origin'
+alias gpom='git pull origin master'
+alias gpso='git push origin'
+alias gpsom='git push origin master'
+alias grom='git rebase origin/master'
+alias grv="git remote -v"
+alias gitremote="git remote -v | grep fetch | awk {'print \$2'}"
+alias gitr="gitremote"
+# save git password to GIT_PASSWD
+alias storegitpass='read -sp "Please enter your Git password: " GIT_PASSWD; echo "$NEWLINE"'
+# to store git password on login: add storefitpass to init
 fi
 
-# init
+# if nginx is installed, add nginx aliases
+if command -v nginx > /dev/null; then
+alias nginx-alias="alias | grep nginx"
+alias cdnginx="cd /etc/nginx"
+alias sitesa='cd /etc/nginx/sites-available'
+alias sitese='cd /etc/nginx/sites-enabled'
+alias lssites='ls -l /etc/nginx/sites-enabled'
+alias lssitesa='ls -l /etc/nginx/sites-available'
+alias nginxstart='sudo systemctl start nginx'
+alias nginxstop='sudo systemctl stop nginx'
+alias nginxrestart='sudo systemctl restart nginx'
+alias nginxreload='sudo systemctl reload nginx'
+alias nginxtest='sudo nginx -t'
+alias ngint='nginxtest'
+alias nginxstatus='sudo systemctl status nginx'
+alias nginxerrors='sudo tail -f /var/log/nginx/error.log'
+alias nginxaccess='sudo tail -f /var/log/nginx/access.log'
+alias createproxy='bash <(curl -sSL https://jrussell.sh/create-nginx-proxy)'
+alias nginxedit='echo "current live sites:" && lssites; read -p "file=" filename; sudo nano /etc/nginx/sites-available/$filename'
+alias nginxnew='nginxedit'
+alias nginxcopy='lssites; read -p "oldfile=" oldfile; read -p "newfile=" newfile; sudo rm -rf /etc/nginx/sites-available/$newfile && sudo cp -ar /etc/nginx/sites-available/$oldfile /etc/nginx/sites-available/$newfile && sudo nano /etc/nginx/sites-available/$newfile && nginxlink && nginxreload'
+alias nginxlink='read -p "nginx config to link -> " confname; sudo ln -s /etc/nginx/sites-available/$confname /etc/nginx/sites-enabled/$confname && echo "current live sites:" && lssites | grep $confname'
+alias nginxunlink='echo "current live sites:" && lssites && read -p "nginx config to unlink -> " confname; sudo unlink /etc/nginx/sites-enabled/$confname'
+alias nginxrename='read -p "nginx config to rename -> " confname; sudo mv /etc/nginx/sites-available/$confname /etc/nginx/sites-available/$confname'
+fi
+
+# if ollama is installed, add ollama aliases
+if command -v ollama > /dev/null; then
+alias ollama-alias='alias | grep ollama'
+alias oa='ollama-alias'
+alias o='ollama'
+alias oh='ollama help'
+alias op='ollama pull'
+alias ols='ollama list'
+alias ops='ollama ps'
+alias orm='ollama rm'
+fi
+
+# if nvidia is installed, add nvidia aliases
+if command -v nvidia-smi > /dev/null; then
+alias gpu='watch -n 1 nvidia-smi'
+fi
+
+# unsorted
