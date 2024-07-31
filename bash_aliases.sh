@@ -23,8 +23,8 @@ export SSH_AUTH_SOCK=$(find /tmp/ssh-* -user `whoami` -name agent\* -printf '%T@
 export HISTCONTROL=ignoreboth
 
 # custom functions
-# prints the repo and branch
-git_repo_branch() {
+## git functions
+git_repo_branch() { # prints the repo and branch
   repo=$(git remote -v 2>/dev/null | head -n 1 | sed -nE 's@^.*/(.*).git.*$@\1@p')
   if [ "$repo" != "" ]; then
     branch=$(git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/')
@@ -32,6 +32,18 @@ git_repo_branch() {
   else
     printf ""
   fi
+}
+function gitroot { # print git root folder
+  r=$(git rev-parse --git-dir) && r=$(cd "$r" && pwd)/ && echo "${r%%/.git/*}"
+}
+function gitremote { # print git remotes
+  repodir=`gitroot`
+  cd $repodir
+  git remote -v | grep fetch | awk '{print $2}' | sort | uniq
+}
+function gitdir { # switch to git root folder
+  repodir=`gitroot`
+  cd $repodir
 }
 # sets the prompt with or without color
 if [ -x /usr/bin/tput ] && tput setaf 1 >&/dev/null; then
@@ -182,7 +194,6 @@ alias setremotehost='read -p "<hostname>:$remoteport -> " remotehost'
 alias setremoteuser='read -p "<username@$remotehost -> " remoteuser'
 alias portforward="setlocalport && setremoteport && setremotehost && setremoteuser && ssh -f -N -L 127.0.0.1:$localport:$remotehost:$remoteport $remoteuser:$remotehost"
 # ssh
-alias loadoldkey='ssh-add ~/.ssh/id_rsa_old &>/dev/null'
 alias addsshkey='bash <(curl -sSL https://jrussell.sh/add-ssh-key)'
 alias convertkey='ssh-keygen -e -f'
 alias sshgenkey='ssh-keygen -t ed25519 -C "jrussellfreelance@gmail.com"'
@@ -263,6 +274,10 @@ alias git-alias="alias | grep git"
 alias gitconfig='bash <(curl -sSL https://jrussell.sh/configure-git)'
 alias gitclone="bash <(curl -sSL https://jrussell.sh/recursive-git-clone)"
 alias gitops="bash <(curl -sSL https://jrussell.sh/git-ops)"
+# aliases for git functions
+alias gitr="gitremote"
+# my git aliases
+alias grv="git remote -v"
 alias gitseturl="git remote set-url origin"
 # git aliases from Eric, plus new ones
 alias ga='git add'
@@ -296,9 +311,6 @@ alias gpom='git pull origin master'
 alias gpso='git push origin'
 alias gpsom='git push origin master'
 alias grom='git rebase origin/master'
-alias grv="git remote -v"
-alias gitremote="git remote -v | grep fetch | awk {'print \$2'}"
-alias gitr="gitremote"
 # save git password to GIT_PASSWD
 alias storegitpass='read -sp "Please enter your Git password: " GIT_PASSWD; echo "$NEWLINE"'
 # to store git password on login: add storefitpass to init
