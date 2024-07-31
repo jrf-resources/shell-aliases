@@ -1,5 +1,5 @@
 ### Jesse Russell's default settings and aliases
-# This file should be kept safe for public usage
+# This file should be kept sanitized for public usage
 
 ### init
 # store session start date & time
